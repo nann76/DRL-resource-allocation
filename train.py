@@ -47,20 +47,20 @@ class TrainManager:
     def train(self):
 
 
-        max_iterations =  200
+        max_epoch =  200
 
 
         maxlen_best_model = 1  # Save the best model
         makespan_best =float('inf')
         last_best_model_path = None
-        count = 0
+        count_iters = 0
 
         list_mean_delay = []
 
         agent = Agent()
 
-        num_tasks = 6
-        env = Env(num_tasks=num_tasks)
+        num_tasks = 10
+        env = Env(num_tasks=num_tasks,train_batch_size=4096)
 
         str_time = time.strftime("%Y%m%d_%H%M%S", time.localtime(time.time()))
 
@@ -68,15 +68,18 @@ class TrainManager:
         os.makedirs(save_dir)
 
         start_train_time = time.time()
-        for i in range(1,max_iterations + 1):
-            print(f'iter: {i}')
+        for i in range(1,max_epoch + 1):
+            print(f'epoch: {i}')
 
             state, index = env.train_dataset
+            if i % 100 ==0:
+                env.update_train_dataset()
+                state, index = env.train_dataset
 
             # 合并state和index_tensor为一个数据集
             combined_dataset = TensorDataset(state, index)
             # 使用DataLoader从合并后的数据集中采样
-            dataloader = DataLoader(combined_dataset, batch_size=1000, shuffle=True)
+            dataloader = DataLoader(combined_dataset, batch_size=1024, shuffle=True)
             # 遍历dataloader获取每次的采样
             for batch_data in dataloader:
                 sampled_state, sampled_index = batch_data
@@ -86,7 +89,7 @@ class TrainManager:
 
                 # 模型更新
                 agent.learn( reward, action_probs)
-                count +=1
+                count_iters +=1
 
 
                 # 验证集验证
@@ -103,7 +106,7 @@ class TrainManager:
                 if mean_delay < makespan_best:
 
                     makespan_best = mean_delay
-                    save_new_model_path = '{0}/model_T{1}_I{2}.pt'.format(save_dir,num_tasks, count)
+                    save_new_model_path = '{0}/model_T{1}_I{2}.pt'.format(save_dir,num_tasks, count_iters)
                     if last_best_model_path != None:
                         os.remove(last_best_model_path)
                     last_best_model_path = save_new_model_path

@@ -1,6 +1,6 @@
 import torch
-
-
+import random
+import numpy as np
 from environment import  Env
 from agent import Agent
 from torch.utils.data import DataLoader, TensorDataset
@@ -19,7 +19,14 @@ else :
 print('Using PyTorch version:', torch.__version__, ' Device:', device)
 
 
+def setup_seed(seed):
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    np.random.seed(seed)
+    random.seed(seed)
+    torch.backends.cudnn.deterministic = True
 
+setup_seed(200)
 
 
 
@@ -29,6 +36,8 @@ env = Env(num_tasks=num_tasks)
 
 # 加载模型
 model_path = './train_dir/num_task_6_20240507_162525/model_T6_I163.pt'
+model_path = './train_dir/num_task_6_20240508_204647/model_T6_I489.pt'
+model_path = './train_dir/num_task_10_20240508_212618/model_T10_I637.pt'
 state_dict = torch.load(model_path)
 agent = Agent()
 

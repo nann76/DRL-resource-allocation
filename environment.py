@@ -10,11 +10,14 @@ from torch.utils.data import random_split
 
 class Env:
 
-    def __init__(self,num_tasks=6,num_states=5):
+    def __init__(self,num_tasks=6,num_states=5,
+                 train_batch_size=4096,validate_batch_size=100):
 
         self.num_tasks =num_tasks
         self.max_num_tasks = 20
         self.num_states = num_states
+
+        self.train_batch_size = train_batch_size
 
 
         # [num_tasks,num_states] 所有任务所有状态的曲线下降速率
@@ -36,11 +39,13 @@ class Env:
 
         self.all_instances = self.gen_total_instances(num_task=self.max_num_tasks)
 
-        batch_size = 3000
         # batch_dataset_state,batch_dataset_index = self.gen_instances(size_dataset=3000,  num_task=num_tasks)
-        self.train_dataset = self.gen_instances(size_dataset=batch_size, num_task=num_tasks)
+        self.train_dataset = self.gen_instances(size_dataset=train_batch_size, num_task=num_tasks)
 
-        self.validate_dataset = self.gen_instances(size_dataset=100, num_task=num_tasks)
+        self.validate_dataset = self.gen_instances(size_dataset=validate_batch_size, num_task=num_tasks)
+
+    def update_train_dataset(self):
+        self.train_dataset = self.gen_instances(size_dataset=self.train_batch_size, num_task=self.num_tasks)
 
     def sample_x(self,num_sample):
         '''
