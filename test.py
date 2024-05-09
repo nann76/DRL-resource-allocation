@@ -40,33 +40,32 @@ model_path = './train_dir/num_task_6_20240508_204647/model_T6_I489.pt'
 model_path = './train_dir/num_task_10_20240508_212618/model_T10_I637.pt'
 state_dict = torch.load(model_path)
 agent = Agent()
-
-
-
+agent.model.load_state_dict(state_dict)
 
 
 
 # 加载数据
 state, index = env.validate_dataset
 
-action_probs = agent.get_action(state)
+# 均分 Equal distribution
+
+# [batch_size,num_task,128]
+batch_size, num_task,_ = state.size()
+action_probs = torch.ones((batch_size,num_task))
+action_probs = action_probs/num_task
+
 delay = env.complete_delay(action_probs, index)
 
 # print('delay: ', delay)
 print('mean delay: ', torch.mean(delay,dim=-1))
-
 total_mean_delay = torch.mean(delay).item()
 print('validate mean delay: ', total_mean_delay)
 
 
-# 加载训练模型后，对比
-agent.model.load_state_dict(state_dict)
-
+# 加载训练模型
 action_probs = agent.get_action(state)
 delay = env.complete_delay(action_probs, index)
-
 # print('delay: ', delay)
 print('mean delay: ', torch.mean(delay,dim=-1))
-
 total_mean_delay = torch.mean(delay).item()
 print('validate mean delay: ', total_mean_delay)

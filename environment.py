@@ -311,7 +311,7 @@ if __name__ == '__main__':
 
     # env.gen_instances(batch_size=400,num_task=3)
     # env.choose_states(20)
-    # env.draw_cure()
+    env.draw_cure()
     #
     # x = torch.arange(0, 128)
     # decay_rate = env.list_decay_rate[2][1]
