@@ -47,7 +47,7 @@ class TrainManager:
     def train(self):
 
 
-        max_epoch =  200
+        max_epoch =  30
 
 
         maxlen_best_model = 1  # Save the best model
@@ -60,7 +60,7 @@ class TrainManager:
         agent = Agent()
 
         num_tasks = 10
-        env = Env(num_tasks=num_tasks,train_batch_size=4096)
+        env = Env(num_tasks=num_tasks,train_batch_size=1024*20)
 
         str_time = time.strftime("%Y%m%d_%H%M%S", time.localtime(time.time()))
 
