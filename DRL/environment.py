@@ -1,5 +1,4 @@
 import copy
-
 import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, TensorDataset
@@ -7,42 +6,50 @@ import matplotlib.pyplot as plt
 import numpy as np
 import random
 from torch.utils.data import random_split
+import os
+from predict_model.pre_model import Pre_MLP
 
 class Env:
 
-    def __init__(self,num_tasks=6,num_states=5,
+    def __init__(self,num_tasks=3,num_states=3,
                  train_batch_size=4096,validate_batch_size=100):
 
         self.num_tasks =num_tasks
-        self.max_num_tasks = 20
+        self.max_num_tasks = 5
         self.num_states = num_states
 
         self.train_batch_size = train_batch_size
 
+        # 环境模型
+        self.model_list = []
 
-        # [num_tasks,num_states] 所有任务所有状态的曲线下降速率
-        self.list_decay_rate = []
+        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-        # 生成所有曲线
-        for task in range(self.max_num_tasks):
-            states_decay_rate = []
-            for state in range(self.num_states):
-                # 随机生成一个下降速率
-                decay_rate = torch.rand(1) * 500
-                states_decay_rate.append(decay_rate)
+        model_path = './pre_model'
+        model_file = sorted(os.listdir(model_path))
+        for i in range(len(model_file)):
+            model = Pre_MLP(input_dim=4, hidden_dim=128, output_dim=1,dropout_prob=0.5).to(self.device)
+            model_file_path = os.path.join(model_path, model_file[i])
+            state_dict = torch.load(model_file_path)
+            model.load_state_dict(state_dict)
 
-                # decay_rate = np.random.uniform(0.5, 5)  # 随机生成下降速率范围
-                # offset = np.random.uniform(0, 50)  # 随机生成偏移量范围
-                # y = torch.exp(-(x + offset) / decay_rate) * 128
-            self.list_decay_rate.append(states_decay_rate)
+            self.model_list.append(model)
 
 
-        self.all_instances = self.gen_total_instances(num_task=self.max_num_tasks)
 
-        # batch_dataset_state,batch_dataset_index = self.gen_instances(size_dataset=3000,  num_task=num_tasks)
-        self.train_dataset = self.gen_instances(size_dataset=train_batch_size, num_task=num_tasks)
+        # x =torch.tensor([0,1,89,128]).float().to(self.device)
+        # print(self.model_list[0](x))
+        # print(self.model_list[1](x))
+        # print(self.model_list[2](x))
 
-        self.validate_dataset = self.gen_instances(size_dataset=validate_batch_size, num_task=num_tasks)
+
+
+        # self.all_instances = self.gen_total_instances(num_task=self.max_num_tasks)
+        # self.train_dataset = self.gen_instances(size_dataset=train_batch_size, num_task=num_tasks)
+        # self.validate_dataset = self.gen_instances(size_dataset=validate_batch_size, num_task=num_tasks)
+
+
+
 
     def update_train_dataset(self):
         self.train_dataset = self.gen_instances(size_dataset=self.train_batch_size, num_task=self.num_tasks)
@@ -148,13 +155,6 @@ class Env:
 
         return y, index
 
-    def exponential_decay(self,x,decay_rate):
-        '''
-        :param x: input
-        :param decay_rate: 下降速率
-        :return:
-        '''
-        return torch.exp(-x / decay_rate) * 1000
 
 
     def draw_cure(self):
