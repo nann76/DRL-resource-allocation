@@ -24,11 +24,14 @@ class Env:
         self.model_list = []
 
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        self.device = torch.device( "cpu")
 
         model_path = './pre_model'
         model_file = sorted(os.listdir(model_path))
+        # model_file.remove('model_T0_I660.pt')
+        model_file = ['model_T0_I3030.pt']
         for i in range(len(model_file)):
-            model = Pre_MLP(input_dim=4, hidden_dim=128, output_dim=1,dropout_prob=0.5).to(self.device)
+            model = Pre_MLP(input_dim=4, hidden_dim=128, output_dim=1,dropout_prob=0.).to(self.device)
             model_file_path = os.path.join(model_path, model_file[i])
             state_dict = torch.load(model_file_path)
             model.load_state_dict(state_dict)
@@ -44,7 +47,7 @@ class Env:
 
 
 
-        # self.all_instances = self.gen_total_instances(num_task=self.max_num_tasks)
+        self.all_instances = self.gen_total_instances(num_task=num_tasks)
         # self.train_dataset = self.gen_instances(size_dataset=train_batch_size, num_task=num_tasks)
         # self.validate_dataset = self.gen_instances(size_dataset=validate_batch_size, num_task=num_tasks)
 
@@ -54,20 +57,7 @@ class Env:
     def update_train_dataset(self):
         self.train_dataset = self.gen_instances(size_dataset=self.train_batch_size, num_task=self.num_tasks)
 
-    def sample_x(self,num_sample):
-        '''
-        采样x，均匀采样
-        :param num_sample:
-        :return:
-        '''
 
-        # 在[0, 128]范围内随机采样n个浮点数
-        # random_samples = torch.rand(num_sample) * 128
-
-        random_samples = torch.linspace(0, 1, num_sample) * 128
-        sorted_samples_x, indices = torch.sort(random_samples)
-        # 返回采样的x
-        return sorted_samples_x
 
 
 
@@ -119,28 +109,57 @@ class Env:
 
 
         # list_task = list(range(num_task))
+        num_sample = 128
+        zero = torch.zeros((num_sample,)).unsqueeze(-1)
+        cpu = torch.linspace(0, 1, num_sample) * 50
+        io = torch.linspace(0, 1, num_sample) * 100
+        cache = torch.linspace(0, 1, num_sample) * 128
 
+        cpu = torch.cat((cpu.unsqueeze(-1),zero,zero),dim=-1)
+        io = torch.cat((zero, io.unsqueeze(-1),zero,), dim=-1)
+        cache = torch.cat((zero, zero, cache.unsqueeze(-1)), dim=-1)
 
-        x = self.sample_x(num_sample=128)
+        state = torch.tensor([0,1,2]).unsqueeze(-1).repeat(1,1,num_sample).squeeze()
+
+        # [num_sample, 4]
+        s1 = torch.cat((state[0].unsqueeze(-1),cpu),dim=-1)
+        s2 = torch.cat((state[1].unsqueeze(-1),cpu),dim=-1)
+        s3 = torch.cat((state[2].unsqueeze(-1),cpu),dim=-1)
+        # [3*num_sample, 4]
+        state_cpu = torch.cat((s1,s2,s3),dim=0).view(-1,num_sample,4)
+
+        # [num_sample, 4]
+        s1 = torch.cat((state[0].unsqueeze(-1), io), dim=-1)
+        s2 = torch.cat((state[1].unsqueeze(-1), io), dim=-1)
+        s3 = torch.cat((state[2].unsqueeze(-1), io), dim=-1)
+        # [3*num_sample, 4]
+        state_io = torch.cat((s1, s2, s3), dim=0).view(-1,num_sample,4)
+
+        # [num_sample, 4]
+        s1 = torch.cat((state[0].unsqueeze(-1), cache), dim=-1)
+        s2 = torch.cat((state[1].unsqueeze(-1), cache), dim=-1)
+        s3 = torch.cat((state[2].unsqueeze(-1), cache), dim=-1)
+        # [3*num_sample, 4]
+        state_cache = torch.cat((s1, s2, s3), dim=0).view(-1,num_sample,4)
+
 
         y_list = []
         index_list = []
 
+
+
         for task_idx in range(num_task):
 
-            decay_rate = self.list_decay_rate[task_idx][:]
-            decay_rate= torch.cat(decay_rate).view(-1)
+            y_cpu = self.model_list[task_idx](state_cpu)
+            y_io = self.model_list[task_idx](state_io)
+            y_cache = self.model_list[task_idx](state_cache)
+            # [3,128,3] 状态，128个采样点，3资源
+            c_i_c = torch.cat((y_cpu,y_io,y_cache),dim=-1)
+            # [3,3,3] 状态，3资源，128个采样点
+            c_i_c = c_i_c.transpose(-1,-2)
+            y_list.append(c_i_c)
 
-            y = self.exponential_decay(x.repeat(self.num_states, 1), decay_rate.unsqueeze(1).repeat(1, 128))
-            y_list.append(y)
-
-            index_tensor = torch.cat((torch.tensor([task_idx] * self.num_states).unsqueeze(-1),
-                                      torch.tensor(list(range(self.num_states))).unsqueeze(-1)), dim=-1)
-            index_list.append(index_tensor)
-
-        # [num_task,num_state,128] -> [num_task*num_state,128]
-        # y = torch.stack(y_list, dim=0).view(-1, 128)
-        # [num_task,num_state,128]
+        # [num_task,num_state=3,num_res=3,num_sample=128]
         y = torch.stack(y_list, dim=0)
 
         # [num_task,num_state,2]
@@ -154,6 +173,33 @@ class Env:
         y = (y - min_val) / (max_val - min_val)
 
         return y, index
+
+    def gen_total_instances2(self,num_task=5):
+        '''
+        nnennnn
+        :param num_task:
+        :return:
+        '''
+
+        num_sample = 128
+        zero = torch.zeros((num_sample,)).unsqueeze(-1)
+        cpu = torch.linspace(0, 1, num_sample) * 50
+        io = torch.linspace(0, 1, num_sample) * 100
+        cache = torch.linspace(0, 1, num_sample) * 128
+
+        cpu = torch.cat((cpu.unsqueeze(-1),zero,zero),dim=-1)
+        io = torch.cat((zero, io.unsqueeze(-1),zero,), dim=-1)
+        cache = torch.cat((zero, zero, cache.unsqueeze(-1)), dim=-1)
+
+        state = torch.tensor([0,1,2]).unsqueeze(-1).repeat(1,1,num_sample).squeeze()
+
+        tasks_list = np.arange(self.num_tasks)
+        states_list = np.arange(self.num_states)
+
+        grid1, grid2 = np.meshgrid(tasks_list, states_list)
+        result = np.column_stack((grid1.ravel(), grid2.ravel()))
+
+
 
 
 

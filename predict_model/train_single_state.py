@@ -32,8 +32,8 @@ class TrainManager:
 
         if self.device.type == 'cuda':
             torch.cuda.set_device(self.device)
-            # torch.set_default_tensor_type('torch.cuda.FloatTensor')
-            torch.set_default_dtype(torch.float64)
+            torch.set_default_tensor_type('torch.cuda.FloatTensor')
+            # torch.set_default_dtype(torch.float64)
         else :
             torch.set_default_tensor_type('torch.FloatTensor')
             num_cpus = torch.get_num_threads()
@@ -58,7 +58,7 @@ class TrainManager:
         save_dir = f'./train_dir/task_{task}_{str_time}'
         os.makedirs(save_dir)
 
-        model = Pre_MLP(input_dim=4, hidden_dim=128, output_dim=1,dropout_prob=0.2).to(self.device)
+        model = Pre_MLP(input_dim=3, hidden_dim=64, output_dim=1,dropout_prob=0.2).to(self.device)
         # model = KAN([4,64,1]).to(self.device)
         # 定义损失函数和优化器
         criterion = nn.MSELoss()
@@ -72,27 +72,50 @@ class TrainManager:
         #                                                  gamma=configs.decay_ratio)
 
         # 训练数据
-        gen_data = Data()
-        state_data, y = gen_data.gen_train_dataset(batch_size=1024*10)
+        # gen_data = Data()
+        #
+        # state_data, y = gen_data.gen_train_dataset(batch_size=1024*10)
+        # state_data = state_data[0:1024*10,1:]
+        # y = y[0:1024*10]
         # 数据处理
+        # gen_data = Data()
+        #
+        # state_data, y = gen_data.all()
+
+        cpu = np.arange(1,51,2)  # 0 to 50
+        io = np.arange(1,101,2)  # 0 to 100
+        cache = np.arange(1,129,2)  # 0 to 128
+        cpu_grid, io_grid, cache_grid = np.meshgrid(cpu, io, cache, indexing='ij')
+        combinations = np.vstack([cpu_grid.ravel(), io_grid.ravel(), cache_grid.ravel()]).T
+
+        def f(cpu_io_cache):
+            return (np.exp(-cpu_io_cache[:, 0] / 24) +
+                    np.exp(-cpu_io_cache[:, 1] / 31) +
+                    np.exp(-cpu_io_cache[:, 2] / 5)) * 200
+
+        X = combinations
+        y = f(X)
+
+        # 划分训练集和测试集
+        from sklearn.model_selection import train_test_split
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+        val_size = len(y_test)
+        X_train = torch.tensor(X_train).float()
+        y_train = torch.tensor(y_train).float()
+        X_test = torch.tensor(X_test).float()
+        y_test = torch.tensor(y_test).float()
 
 
         # 合并state和index_tensor为一个数据集
-        combined_dataset = TensorDataset(state_data, y)
+        combined_dataset_train = TensorDataset(X_train, y_train)
+        combined_dataset_test = TensorDataset(X_test, y_test)
 
-        # 计算拆分的样本数
-        train_size = int(0.9 * len(combined_dataset))
-        val_size = len(combined_dataset) - train_size
 
-        # 明确指定生成器为 CPU
-        # generator = torch.Generator()
-        # 拆分数据集
-        # train_dataset, val_dataset = random_split(combined_dataset, [train_size, val_size], generator=generator)
-        train_dataset, val_dataset = random_split(combined_dataset, [train_size, val_size])
 
         # 使用DataLoader从合并后的数据集中采样
-        train_dataloader = DataLoader(train_dataset, batch_size=1024, shuffle=True)
-        val_dataloader =  DataLoader(val_dataset, batch_size=val_size)
+        train_dataloader = DataLoader(combined_dataset_train, batch_size=1024, shuffle=True)
+        val_dataloader =  DataLoader(combined_dataset_test, batch_size=val_size)
 
         start_train_time = time.time()
 

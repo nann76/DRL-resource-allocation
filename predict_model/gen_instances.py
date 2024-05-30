@@ -10,6 +10,7 @@ import numpy as np
 #
 # setup_seed(50)
 
+
 class Data:
 
     def __init__(self,num_task=5):
@@ -55,7 +56,46 @@ class Data:
         y3 = k[2] * torch.exp(-cpu_io_cache[index] / decay_rate[2])
         y3 = torch.sum(y3,dim=-1)
         # 生成的x中state是按顺序排序的
-        y =torch.cat((y1,y2,y3))
+        y =torch.cat((y1,y2,y3)) *100
+
+
+
+        # num_sample = 128
+        # zero = torch.zeros((num_sample,)).unsqueeze(-1)
+        # cpu = torch.linspace(0, 1, num_sample) * 50
+        # io = torch.linspace(0, 1, num_sample) * 100
+        # cache = torch.linspace(0, 1, num_sample) * 128
+        #
+        # cpu = torch.cat((cpu.unsqueeze(-1),zero,zero),dim=-1)
+        # io = torch.cat((zero, io.unsqueeze(-1),zero,), dim=-1)
+        # cache = torch.cat((zero, zero, cache.unsqueeze(-1)), dim=-1)
+        #
+        # state = torch.tensor([0,1,2]).unsqueeze(-1).repeat(1,1,num_sample).squeeze()
+        #
+        # # [num_sample, 4]
+        # s1 = torch.cat((state[0].unsqueeze(-1),cpu),dim=-1)
+        #
+        #
+        #
+        # s2 = torch.cat((state[1].unsqueeze(-1),cpu),dim=-1)
+        # s3 = torch.cat((state[2].unsqueeze(-1),cpu),dim=-1)
+        # # [3*num_sample, 4]
+        # state_cpu = torch.cat((s1,s2,s3),dim=0).view(-1,num_sample,4)
+        #
+        # # [num_sample, 4]
+        # s1 = torch.cat((state[0].unsqueeze(-1), io), dim=-1)
+        # s2 = torch.cat((state[1].unsqueeze(-1), io), dim=-1)
+        # s3 = torch.cat((state[2].unsqueeze(-1), io), dim=-1)
+        # # [3*num_sample, 4]
+        # state_io = torch.cat((s1, s2, s3), dim=0).view(-1,num_sample,4)
+        #
+        # # [num_sample, 4]
+        # s1 = torch.cat((state[0].unsqueeze(-1), cache), dim=-1)
+        # s2 = torch.cat((state[1].unsqueeze(-1), cache), dim=-1)
+        # s3 = torch.cat((state[2].unsqueeze(-1), cache), dim=-1)
+        # # [3*num_sample, 4]
+        # state_cache = torch.cat((s1, s2, s3), dim=0).view(-1,num_sample,4)
+
 
         return y
 
@@ -71,9 +111,10 @@ class Data:
             temp_k =[]
             for x in range(3):
                 # 随机生成一个下降速率 [0,1)
-                decay_rate_ = random.random() * 500
+                decay_rate_ = random.random() * 50
                 temp_decay_rate.append(decay_rate_)
-                k_ = random.random() + 0.5
+                # k_ = random.random() + 0.5
+                k_ = 1.
                 temp_k.append(k_)
             decay_rate.append(temp_decay_rate)
             k.append(temp_k)
@@ -82,8 +123,8 @@ class Data:
         k = torch.tensor(k)
 
 
-        # [0,51)
-        cpu = torch.randint(0,self.max_num_cpu+1,(batch_size,))
+        # [1,51)
+        cpu = torch.randint(1,self.max_num_cpu+1,(batch_size,))
         # [0,1) * 100.
         io = torch.rand(batch_size) * self.max_io
         # [0,1) * 128.
@@ -125,8 +166,33 @@ class Data:
 
         y = self.compute(state_data,k,decay_rate)
 
+        state_data[:, 1] /= self.max_num_cpu
+        state_data[:, 2] /= self.max_io
+        state_data[:, 3] /= self.max_cache
+
         return state_data,y
 
+    def all(self):
+        cpu = np.arange(1,51,2)  # 0 to 50
+        io = np.arange(1,101,2)  # 0 to 100
+        cache = np.arange(1,129,2)  # 0 to 128
+        cpu_grid, io_grid, cache_grid = np.meshgrid(cpu, io, cache, indexing='ij')
+        combinations = np.vstack([cpu_grid.ravel(), io_grid.ravel(), cache_grid.ravel()]).T
+
+        def f(cpu_io_cache):
+            return (np.exp(-cpu_io_cache[:, 0] / 24) +
+                    np.exp(-cpu_io_cache[:, 1] / 31) +
+                    np.exp(-cpu_io_cache[:, 2] / 5)) * 200
+
+        X = combinations
+        y = f(X)
+
+        X = X.tolist()
+        y = y.tolist()
+
+        state_data = torch.tensor(X).float()
+        y = torch.tensor(y).float()
+        return state_data,y
 
     def gen_train_dataset2(self,batch_size):
 
@@ -138,9 +204,10 @@ class Data:
             temp_k =[]
             for x in range(3):
                 # 随机生成一个下降速率 [0,1)
-                decay_rate_ = random.random() * 500
+                decay_rate_ = random.random() * 50
                 temp_decay_rate.append(decay_rate_)
-                k_ = random.random() + 0.5
+                # k_ = random.random() + 0.5
+                k_ = 1.
                 temp_k.append(k_)
             decay_rate.append(temp_decay_rate)
             k.append(temp_k)
@@ -186,6 +253,10 @@ class Data:
         state_data = torch.cat((s1,s2,s3),dim=0)
 
         y = self.compute(state_data,k,decay_rate)
+
+        state_data[:, 1] /= self.max_num_cpu
+        state_data[:, 2] /= self.max_io
+        state_data[:, 3] /= self.max_cache
 
         return state_data,y
 
